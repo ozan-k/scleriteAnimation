@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>three.js webgl - orbit controls</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+		<link type="text/css" rel="stylesheet" href="main.css">
+		<style>
+			body {
+				background-color: #ccc;
+				color: #000;
+			}
+
+			a {
+				color: #f00;
+			}
+
+			div {
+				display: flex;
+				flex-direction: column;
+				align-items: left;
+			}
+		</style>
+	</head>
+
+	<body>
+			
+		<div>
+			<input type="file">
+		</div>
+        <script src="./sim_output__dif_1.9__bud_0.01__dep_2.55__52_weeks.js"></script>
+	
+		
+		<script type="module">
+			import * as THREE from 'https://threejsfundamentals.org/threejs/resources/threejs/r122/build/three.module.js';
+			import { OrbitControls } from 'https://threejs.org/examples/jsm/controls/OrbitControls.js';
+			import {OBJLoader} from 'https://threejsfundamentals.org/threejs/resources/threejs/r122/examples/jsm/loaders/OBJLoader.js';
+
+			let camera, controls, scene, renderer;
+		
+
+			// =====================================================
+			let input = document.querySelector('input');
+			
+			input.addEventListener('change', () => {
+				let files = input.files;
+			
+				if(files.length == 0) return;
+			
+				const file = files[0];
+				
+				let i;
+   				let reader = new FileReader();
+			
+				reader.onload = (e) => {
+					const file = e.target.result;
+					
+					let sim = file.split(";\n");
+					let sim_lines = [];
+					for (i = 0; i < sim.length; i++) {
+							sim_lines.push(sim[i].split(" , "));
+					}
+					// console.log(sim_lines);
+					draw_colony(sim_lines,53,4);
+				};
+			
+				reader.onerror = (e) => alert(e.target.error.name);
+			
+				reader.readAsText(file); 
+				
+			});
+			// =====================================================
+             
+			init();
+			//render(); // remove when using next line for animation loop (requestAnimationFrame)
+			animate();
+			draw_colony(this_sim,53,4);
+
+
+            function draw_colony(sim,time,scale) {
+				const loader = new OBJLoader();
+				loader.load( 'sclerite.obj', function( sclerite ) {
+				let sclerite_material = new THREE.MeshBasicMaterial( { color: 0xffffff * Math.random() } );
+				// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~	
+				const polyp_geometry = new THREE.CylinderGeometry( 3.0, 6, 12, 4, 1 );
+			    const polyp_material = new THREE.MeshPhongMaterial( { color: 0xFF8133 } );
+				const polyp_mesh_master = new THREE.Mesh( polyp_geometry, polyp_material );
+				// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~	
+				sclerite.scale.set(0.015,0.015,0.015);
+				// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~s
+				let state = get_state(sim,time);
+				// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+				// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+				let val,i,j,k,sclerite_count,polyp_state;
+				let row = "";
+				for (i = 0;i <= 100;i++){
+					row = "";
+					for (j = 0;j <= 100;j++){
+						val = state[i][j];
+						sclerite_count = parseInt(val[0])
+						polyp_state = parseInt(val[1])
+						// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+						if (polyp_state > 0) {
+							let polyp_mesh = polyp_mesh_master.clone();
+							polyp_mesh.position.x = (i-50)*scale;
+							polyp_mesh.position.z = (j-50)*scale;
+							polyp_mesh.position.z = scale;
+							scene.add( polyp_mesh );
+							// console.log(i,j,polyp_state);
+						}
+						// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+						if (sclerite_count > 0){
+							for (k = 0;k < sclerite_count;k++){
+								let sclerite_mesh = sclerite.clone();
+								sclerite_mesh.position.x = (i-50)*scale;
+								sclerite_mesh.position.z = (j-50)*scale;
+								sclerite_mesh.position.y = sclerite_count*scale;
+								sclerite_mesh.rotation.set(Math.PI*Math.random(),Math.PI*Math.random(),Math.PI*Math.random());
+								sclerite_mesh.material = sclerite_material;
+								scene.add( sclerite_mesh );
+								// console.log(i,j,sclerite_count);
+							}	
+						}
+						// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~	
+					};
+				}
+				// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+				} ); 
+			}
+
+			// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+			// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+			// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+			let i,j;
+			function create_matrix (){
+				let row; 
+				let mat = [];
+				for (i = 0;i <= 100;i++){
+					row = [];
+					for (j = 0;j <= 100;j++){
+						row.push([0,0])
+					};
+					mat.push(row)
+				}
+				return mat
+			}
+
+			function get_state(simulation,time){
+				let matrix = create_matrix();
+				let event;
+				for (i = 0;i < simulation.length;i++){
+					event = simulation[i];
+					if (event[0] < time) {
+						switch (event[1])
+						{
+							// 1 -> (* diffusion  *) 
+							case "1" :
+							// console.log(event[0],"diffusion");
+							matrix[event[2]][event[3]][0]--;
+							matrix[event[4]][event[5]][0]++;
+							break;
+							//2 -> (*  budding   *) 
+							case "2" : 
+							// console.log(event[0],"budding");
+							matrix[event[4]][event[5]][1] = 1;
+							break;
+							// 3 -> (* deposition *)
+							case "3": 
+							// console.log(event[0],"deposition");
+							matrix[event[4]][event[5]][0]++;
+							break;
+						}
+					}else{
+						break;
+					}
+				}
+				return matrix;
+			}
+
+            // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+			// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+			// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+			function init() {
+
+				scene = new THREE.Scene();
+				scene.background = new THREE.Color( 0xeeeeee );
+				scene.add( new THREE.GridHelper( 400, 10 ) );
+
+				renderer = new THREE.WebGLRenderer( { antialias: true } );
+				renderer.setPixelRatio( window.devicePixelRatio );
+				renderer.setSize( window.innerWidth, window.innerHeight );
+				document.body.appendChild( renderer.domElement );
+
+				camera = new THREE.PerspectiveCamera( 60, window.innerWidth / window.innerHeight, 1, 1000 );
+				camera.position.set( 0,100, 400);
+
+				// controls
+
+				controls = new OrbitControls( camera, renderer.domElement );
+				controls.listenToKeyEvents( window ); // optional
+
+				//controls.addEventListener( 'change', render ); // call this only in static scenes (i.e., if there is no animation loop)
+
+				controls.enableDamping = true; // an animation loop is required when either damping or auto-rotation are enabled
+				controls.dampingFactor = 0.05;
+
+				controls.screenSpacePanning = false;
+
+				controls.minDistance = 100;
+				controls.maxDistance = 500;
+
+				controls.maxPolarAngle = Math.PI / 2;
+
+				// world constructed by draw_colony(sim,time,scale).
+
+			
+				// lights
+
+				const dirLight1 = new THREE.DirectionalLight( 0xffffff );
+				dirLight1.position.set( 1, 1, 1 );
+				scene.add( dirLight1 );
+
+				const dirLight2 = new THREE.DirectionalLight( 0x002288 );
+				dirLight2.position.set( - 1, - 1, - 1 );
+				scene.add( dirLight2 );
+
+				const ambientLight = new THREE.AmbientLight( 0x222222 );
+				scene.add( ambientLight );
+
+				//
+
+				window.addEventListener( 'resize', onWindowResize );
+
+			}
+
+			function onWindowResize() {
+
+				camera.aspect = window.innerWidth / window.innerHeight;
+				camera.updateProjectionMatrix();
+
+				renderer.setSize( window.innerWidth, window.innerHeight );
+
+			}
+
+			function animate() {
+
+				requestAnimationFrame( animate );
+
+				controls.update(); // only required if controls.enableDamping = true, or if controls.autoRotate = true
+
+				render();
+
+			}
+
+			function render() {
+
+				renderer.render( scene, camera );
+
+			}
+			 
+			
+			// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+			// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+			// const my_file = "sim_output__dif_1.9__bud_0.01__dep_2.55__52_weeks.txt";
+ 
+			// let reader = new FileReader();
+			// console.log(reader)
+		
+			// reader.onload = (my_file) => {
+			// 	const file = my_file.target.result;
+			// 	const lines = file.split(/\r\n|\n/);
+			// 	textarea.value = lines.join('\n');
+			// };
+		
+			// reader.onerror = (my_file) => alert(e.target.error.name);
+		
+			// reader.readAsText(my_file); 
+			// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+			// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+			
+
+
+		</script>
+
+	</body>
+</html>
