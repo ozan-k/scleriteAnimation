@@ -10,6 +10,7 @@ let plot_scale = 4;
 let current = 0;
 let plot_events = getEvents(this_sim);
 let event;
+let semafor = true;
 
 main();
 setTimeout(()=> { 
@@ -36,10 +37,11 @@ input.addEventListener('change', () => {
     for (i = 0; i < sim.length; i++) {
         sim_lines.push(sim[i].split(" , "));
     }
-    let events = getEvents(sim_lines);
-    for (i = 0;i < events.length;i++){
-        console.log(events[i])
-      }
+    plot_events = getEvents(sim_lines);
+    // for (i = 0;i < events.length;i++){
+    //     console.log(events[i])
+    //   }
+    // console.log("YEES");
   };
   reader.onerror = (e) => alert(e.target.error.name);
   reader.readAsText(file); 
@@ -128,12 +130,18 @@ function render(time) {
   scene.rotation.y = time/10000;
   // event = plot_events.shift();
   // doEvent(event);
-  while(current < time)
+  while(current < time && semafor)
   {
-    event = plot_events.shift();
-    doEvent(event);
-    // console.log(current,time,event);
-    current = event[1];
+    try {
+      event = plot_events.shift();
+      doEvent(event);
+      current = event[1];
+    } catch (error) {
+      console.log("End time (ms):",time); 
+      semafor = false; 
+    }
+      
+        
   }
   // 
   // ~~~~~~~~~~~~~~~~~~~~~~~~~~~
